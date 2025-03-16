@@ -18,6 +18,11 @@ import {
   Chip,
   Tooltip,
   CircularProgress,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Grid,
 } from '@mui/material';
 import {
   LibraryBooks as FlashcardIcon,
@@ -29,6 +34,7 @@ import {
   Timer as TimerIcon,
   QuestionAnswer as QuestionIcon,
   EmojiEvents as TrophyIcon,
+  Send as SendIcon,
 } from '@mui/icons-material';
 import { api } from '../services/api';
 import { Question } from '../types';
@@ -52,6 +58,8 @@ const QuizQuestion = () => {
   const [timeLeft, setTimeLeft] = useState(30);
   const [mounted, setMounted] = useState(false);
   const [quizTitle, setQuizTitle] = useState('');
+  const [quizCompleted, setQuizCompleted] = useState(false);
+  const [submittingScore, setSubmittingScore] = useState(false);
 
   // Animation effect when component mounts
   useEffect(() => {
@@ -128,18 +136,25 @@ const QuizQuestion = () => {
       setSelectedAnswer('');
       setAnswerSubmitted(false);
     } else {
-      // Quiz completed
-      try {
-        await api.submitScore({
-          quizId: quizId!,
-          playerName,
-          score: score + (isCorrect ? 1 : 0),
-        });
-        navigate(`/result/${quizId}`);
-      } catch (err) {
-        console.error('Failed to submit score:', err);
-        navigate(`/result/${quizId}`);
-      }
+      // Quiz completed - show score summary instead of immediately submitting
+      setQuizCompleted(true);
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 3000);
+    }
+  };
+
+  const handleSubmitScore = async () => {
+    setSubmittingScore(true);
+    try {
+      await api.submitScore({
+        quizId: quizId!,
+        playerName,
+        score: score + (isCorrect ? 1 : 0),
+      });
+      navigate(`/leaderboard/${quizId}`);
+    } catch (err) {
+      console.error('Failed to submit score:', err);
+      navigate(`/leaderboard/${quizId}`);
     }
   };
 
@@ -193,9 +208,180 @@ const QuizQuestion = () => {
   const currentQ = questions[currentQuestion];
   const timeProgress = (timeLeft / 30) * 100;
 
+  // Calculate final score and accuracy
+  const finalScore = score + (isCorrect ? 1 : 0);
+  const accuracy = Math.round((finalScore / questions.length) * 100);
+
   return (
     <Container maxWidth="md">
       {showConfetti && <Confetti recycle={false} numberOfPieces={200} />}
+      
+      {/* Score Summary Dialog */}
+      <Dialog 
+        open={quizCompleted} 
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            background: 'linear-gradient(to bottom right, #ffffff, #f5f5f5)',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.2)',
+          }
+        }}
+      >
+        <DialogTitle sx={{ textAlign: 'center', pt: 4 }}>
+          <Typography 
+            variant="h4" 
+            component="div" 
+            sx={{ 
+              fontWeight: 'bold',
+              background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+              backgroundClip: 'text',
+              textFillColor: 'transparent',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            Quiz Completed!
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ textAlign: 'center', mb: 3 }}>
+            <Typography variant="h6" color="text.secondary" gutterBottom>
+              Your Score Summary
+            </Typography>
+            <Typography variant="h3" color="primary" sx={{ fontWeight: 'bold', mb: 3 }}>
+              {finalScore} / {questions.length}
+            </Typography>
+          </Box>
+
+          <Grid container spacing={3} sx={{ mb: 3 }}>
+            <Grid item xs={12} sm={6}>
+              <Paper
+                elevation={3}
+                sx={{
+                  p: 3,
+                  textAlign: 'center',
+                  borderRadius: 2,
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  background: 'rgba(33, 150, 243, 0.05)',
+                }}
+              >
+                <Box
+                  sx={{
+                    position: 'relative',
+                    width: 120,
+                    height: 120,
+                    mb: 2,
+                  }}
+                >
+                  <CircularProgress
+                    variant="determinate"
+                    value={100}
+                    size={120}
+                    thickness={4}
+                    sx={{ color: 'rgba(0, 0, 0, 0.1)' }}
+                  />
+                  <CircularProgress
+                    variant="determinate"
+                    value={accuracy}
+                    size={120}
+                    thickness={4}
+                    sx={{
+                      color: accuracy >= 70 ? 'success.main' : 'warning.main',
+                      position: 'absolute',
+                      left: 0,
+                    }}
+                  />
+                  <Box
+                    sx={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Typography variant="h4" component="div" color="primary" sx={{ fontWeight: 'bold' }}>
+                      {accuracy}%
+                    </Typography>
+                  </Box>
+                </Box>
+                <Typography variant="body1" color="text.secondary">
+                  Accuracy
+                </Typography>
+              </Paper>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <Paper
+                elevation={3}
+                sx={{
+                  p: 3,
+                  textAlign: 'center',
+                  borderRadius: 2,
+                  height: '100%',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  background: 'rgba(33, 150, 243, 0.05)',
+                }}
+              >
+                <TrophyIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
+                <Typography variant="h5" gutterBottom>
+                  {accuracy >= 80 ? 'Excellent!' : accuracy >= 60 ? 'Good Job!' : 'Nice Try!'}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {accuracy >= 80 
+                    ? 'You\'re a quiz master!' 
+                    : accuracy >= 60 
+                    ? 'You\'re doing great!' 
+                    : 'Keep practicing to improve!'}
+                </Typography>
+              </Paper>
+            </Grid>
+          </Grid>
+
+          <Box sx={{ textAlign: 'center', mt: 2 }}>
+            <Typography variant="body1" color="text.secondary" gutterBottom>
+              Submit your score to see how you compare with others!
+            </Typography>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 3, justifyContent: 'center' }}>
+          <Button 
+            variant="outlined" 
+            onClick={() => navigate('/home')}
+            startIcon={<HomeIcon />}
+            sx={{ borderRadius: 2, px: 3 }}
+          >
+            Go Home
+          </Button>
+          <Button 
+            variant="contained" 
+            onClick={handleSubmitScore}
+            disabled={submittingScore}
+            startIcon={submittingScore ? <CircularProgress size={20} /> : <SendIcon />}
+            sx={{ 
+              borderRadius: 2, 
+              px: 3, 
+              ml: 2,
+              background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+              boxShadow: '0 3px 5px 2px rgba(33, 203, 243, .3)',
+            }}
+          >
+            {submittingScore ? 'Submitting...' : 'Submit Score'}
+          </Button>
+        </DialogActions>
+      </Dialog>
       
       <Box 
         sx={{ 

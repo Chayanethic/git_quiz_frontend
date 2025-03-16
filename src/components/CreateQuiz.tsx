@@ -114,6 +114,7 @@ const CreateQuiz = () => {
 
   // Add marks for the slider
   const questionMarks = [
+    {value: 1, label: '1'},
     { value: 3, label: '3' },
     { value: 5, label: '5' },
     { value: 7, label: '7' },
@@ -171,36 +172,40 @@ const CreateQuiz = () => {
           <Fade in={activeStep === 1} timeout={500}>
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                <SchoolIcon sx={{ fontSize: 30, mr: 2, color: 'primary.main' }} />
-                <Typography variant="h5" color="primary">Content</Typography>
+              <SchoolIcon sx={{ fontSize: 30, mr: 2, color: 'primary.main' }} />
+              <Typography variant="h5" color="primary">Content</Typography>
               </Box>
               
               <TextField
-                fullWidth
-                label="Content Text"
-                name="text"
-                value={formData.text}
-                onChange={handleChange}
-                required
-                multiline
-                rows={6}
-                sx={{ 
-                  mb: 3,
-                  '& .MuiOutlinedInput-root': {
-                    '&:hover fieldset': {
-                      borderColor: 'primary.main',
-                    },
-                    '&.Mui-focused fieldset': {
-                      borderColor: 'primary.main',
-                      borderWidth: '2px',
-                    },
-                  },
-                }}
-                InputProps={{
-                  sx: { borderRadius: 2 }
-                }}
-                placeholder="Enter the content from which questions will be generated..."
+              fullWidth
+              label="Content Text"
+              name="text"
+              value={formData.text}
+              onChange={handleChange}
+              required
+              multiline
+              rows={6}
+              inputProps={{ maxLength: 1000 }}
+              sx={{ 
+                mb: 3,
+                '& .MuiOutlinedInput-root': {
+                '&:hover fieldset': {
+                  borderColor: 'primary.main',
+                },
+                '&.Mui-focused fieldset': {
+                  borderColor: 'primary.main',
+                  borderWidth: '2px',
+                },
+                },
+              }}
+              InputProps={{
+                sx: { borderRadius: 2 }
+              }}
+              placeholder="Enter the content from which questions will be generated (max 1000 words)..."
               />
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+              {formData.text.length} / 1000 characters
+              </Typography>
             </Box>
           </Fade>
         );
@@ -251,7 +256,7 @@ const CreateQuiz = () => {
                   onChange={handleSliderChange}
                   step={null}
                   marks={questionMarks}
-                  min={3}
+                  min={1}
                   max={15}
                   valueLabelDisplay="auto"
                   sx={{

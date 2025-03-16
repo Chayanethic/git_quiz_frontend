@@ -1,12 +1,29 @@
 import { Question, RecentQuiz, Flashcard, LeaderboardEntry } from '../types';
 
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://gitquizserver-production.up.railway.app/api';
-
+// Add type declaration for import.meta
+declare global {
+  interface ImportMeta {
+    env: Record<string, string>;
+  }
+}
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://gitquizserver-production.up.railway.app/api' ;
+// Define the QuizResult interface locally if it's not properly imported
+interface QuizResult {
+  score: number;
+  totalQuestions: number;
+  timeTaken: number;
+  accuracy: number;
+}
 export const api = {
   // Quiz related endpoints
   getRecentQuizzes: async (): Promise<RecentQuiz[]> => {
     const response = await fetch(`${BASE_URL}/recent`);
     if (!response.ok) throw new Error('Failed to fetch recent quizzes');
+    return response.json();
+  },
+  getUserQuizzes: async (userId: string): Promise<RecentQuiz[]> => {
+    const response = await fetch(`${BASE_URL}/recent/user/${userId}`);
+    if (!response.ok) throw new Error('Failed to fetch user quizzes');
     return response.json();
   },
 
@@ -46,6 +63,12 @@ export const api = {
   getLeaderboard: async (quizId: string): Promise<LeaderboardEntry[]> => {
     const response = await fetch(`${BASE_URL}/leaderboard/${quizId}`);
     if (!response.ok) throw new Error('Failed to fetch leaderboard');
+    return response.json();
+  },
+  //quiz result add in the last
+  getQuizResult: async (quizId: string): Promise<QuizResult> => {
+    const response = await fetch(`${BASE_URL}/leaderboard/${quizId}`);
+    if (!response.ok) throw new Error('Failed to fetch quiz result');
     return response.json();
   },
 }; 

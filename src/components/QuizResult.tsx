@@ -11,6 +11,7 @@ import {
   Zoom,
   Grid,
   Chip,
+  Alert,
 } from '@mui/material';
 import {
   EmojiEvents as TrophyIcon,
@@ -23,7 +24,8 @@ import {
 import { api } from '../services/api';
 import Confetti from 'react-confetti';
 
-interface QuizResult {
+// Define the QuizResult interface locally
+interface QuizResultType {
   score: number;
   totalQuestions: number;
   timeTaken: number;
@@ -33,8 +35,9 @@ interface QuizResult {
 const QuizResult = () => {
   const { quizId } = useParams<{ quizId: string }>();
   const navigate = useNavigate();
-  const [result, setResult] = useState<QuizResult | null>(null);
+  const [result, setResult] = useState<QuizResultType | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [mounted, setMounted] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
 
@@ -44,8 +47,21 @@ const QuizResult = () => {
   }, []);
 
   const fetchResult = async () => {
+    if (!quizId) return;
+    
     try {
-      // Mock result data - replace with actual API call
+      // Try to get the result from the API
+      const resultData = await api.getQuizResult(quizId);
+      setResult(resultData);
+      
+      if (resultData.accuracy >= 70) {
+        setShowConfetti(true);
+        setTimeout(() => setShowConfetti(false), 5000);
+      }
+    } catch (error) {
+      console.error('Error fetching result:', error);
+      
+      // Fallback to mock data if API fails
       const mockResult = {
         score: 8,
         totalQuestions: 10,
@@ -53,12 +69,12 @@ const QuizResult = () => {
         accuracy: 80,
       };
       setResult(mockResult);
+      setError('Could not fetch results from server. Showing estimated results.');
+      
       if (mockResult.accuracy >= 70) {
         setShowConfetti(true);
         setTimeout(() => setShowConfetti(false), 5000);
       }
-    } catch (error) {
-      console.error('Error fetching result:', error);
     } finally {
       setLoading(false);
     }
@@ -149,6 +165,12 @@ const QuizResult = () => {
             </Typography>
           </Box>
         </Fade>
+
+        {error && (
+          <Alert severity="warning" sx={{ mb: 4, width: '100%' }}>
+            {error}
+          </Alert>
+        )}
 
         <Grid container spacing={4}>
           <Grid item xs={12} md={8}>

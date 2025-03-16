@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useUser, useClerk } from '@clerk/clerk-react';
+import { useUser, useClerk, UserProfile } from '@clerk/clerk-react';
 import {
   Box,
   Container,
@@ -23,6 +23,10 @@ import {
   CardContent,
   CardActions,
   Chip,
+  Dialog,
+  DialogContent,
+  Backdrop,
+  Fab,
 } from '@mui/material';
 import {
   Add as CreateIcon,
@@ -42,6 +46,8 @@ import {
   FlipToBack as FlipIcon,
   ArrowForward as ArrowIcon,
   ArrowBackOutlined,
+  QuestionAnswer as QuestionAnswerIcon,
+  Close as CloseIcon,
 } from '@mui/icons-material';
 import { api } from '../services/api';
 import { Flashcard, RecentQuiz } from '../types';
@@ -63,6 +69,8 @@ const QuizHome = () => {
   const [recentQuizzes, setRecentQuizzes] = useState<RecentQuiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [flippedCard, setFlippedCard] = useState<number | null>(null);
+  const [showUserProfile, setShowUserProfile] = useState(false);
+  const [showAskMeAny, setShowAskMeAny] = useState(false);
 
   // Animation effect when component mounts
   useEffect(() => {
@@ -82,14 +90,29 @@ const QuizHome = () => {
     const fetchRecentData = async () => {
       try {
         if (user) {
+          // Get up to 5 recent quizzes
           const recentQuizzes = await api.getRecentQuizzes();
-          setRecentQuizzes(recentQuizzes.slice(0, 3));
+          const topQuizzes = recentQuizzes.slice(0, 5);
+          setRecentQuizzes(topQuizzes);
           
-          // Get flashcards from the most recent quiz
-          if (recentQuizzes.length > 0) {
-            const flashcardsResponse = await api.getFlashcards(recentQuizzes[0].quiz_id);
-            setRecentFlashcards(flashcardsResponse.flashcards.slice(0, 4));
-          }
+          // Get one flashcard from each quiz
+          const flashcardsPromises = topQuizzes.map(async (quiz) => {
+            try {
+              const response = await api.getFlashcards(quiz.quiz_id);
+              // Return the first flashcard with the quiz info
+              return response.flashcards.length > 0 
+                ? { ...response.flashcards[0], quiz_id: quiz.quiz_id, quiz_title: quiz.content_name } 
+                : null;
+            } catch (err) {
+              console.error(`Error fetching flashcards for quiz ${quiz.quiz_id}:`, err);
+              return null;
+            }
+          });
+          
+          const flashcardsResults = await Promise.all(flashcardsPromises);
+          // Filter out any null results
+          const validFlashcards = flashcardsResults.filter(card => card !== null);
+          setRecentFlashcards(validFlashcards);
         }
       } catch (error) {
         console.error("Error fetching recent data:", error);
@@ -125,6 +148,15 @@ const QuizHome = () => {
     navigate('/');
   };
 
+  const handleOpenUserProfile = () => {
+    setShowUserProfile(true);
+    handleMenuClose();
+  };
+
+  const handleCloseUserProfile = () => {
+    setShowUserProfile(false);
+  };
+
   const toggleDarkMode = () => {
     setDarkMode(!darkMode);
   };
@@ -135,6 +167,24 @@ const QuizHome = () => {
 
   const handleFlipCard = (index: number) => {
     setFlippedCard(flippedCard === index ? null : index);
+  };
+
+  const handleFlashcardClick = (index: number, quizId: string) => {
+    // First flip the card for visual feedback
+    handleFlipCard(index);
+    
+    // Then navigate to the flashcards page after a short delay
+    setTimeout(() => {
+      navigate(`/flashcards/${quizId}`);
+    }, 500); // 500ms delay to allow the flip animation to be visible
+  };
+
+  const handleOpenAskMeAny = () => {
+    setShowAskMeAny(true);
+  };
+
+  const handleCloseAskMeAny = () => {
+    setShowAskMeAny(false);
   };
 
   const features = [
@@ -187,6 +237,108 @@ const QuizHome = () => {
     <Container maxWidth="lg">
       {showConfetti && <Confetti recycle={false} numberOfPieces={200} />}
       
+      {/* Clerk User Profile Dialog */}
+      <Dialog 
+        open={showUserProfile} 
+        onClose={handleCloseUserProfile}
+        maxWidth="md"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            overflow: 'hidden',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.2)',
+          }
+        }}
+      >
+        <DialogContent sx={{ p: 0 }}>
+          <UserProfile />
+        </DialogContent>
+      </Dialog>
+
+      {/* AskMeAny Dialog */}
+      <Dialog
+        open={showAskMeAny}
+        onClose={handleCloseAskMeAny}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            overflow: 'hidden',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.2)',
+            height: '80vh',
+          }
+        }}
+      >
+        <DialogContent sx={{ p: 0, height: '100%' }}>
+          <Box sx={{ position: 'relative', width: '100%', height: '100%' }}>
+            <IconButton
+              onClick={handleCloseAskMeAny}
+              sx={{
+                position: 'absolute',
+                top: 16,
+                right: 16,
+                zIndex: 10,
+                backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                color: 'white',
+                '&:hover': {
+                  backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                },
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+            <iframe
+              src="https://askmeany.vercel.app"
+              title="AskMeAny"
+              style={{
+                width: '100%',
+                height: '100%',
+                border: 'none',
+              }}
+            />
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      {/* Backdrop for blur effect */}
+      <Backdrop
+        sx={{ 
+          color: '#fff', 
+          zIndex: (theme) => theme.zIndex.drawer + 1,
+          backdropFilter: 'blur(5px)',
+        }}
+        open={showAskMeAny}
+        onClick={handleCloseAskMeAny}
+      />
+      
+      {/* Floating AskMeAny Button */}
+      <Zoom in={mounted} style={{ transitionDelay: '500ms' }}>
+        <Fab
+          color="secondary"
+          aria-label="Ask Me Any"
+          sx={{
+            position: 'fixed',
+            bottom: 24,
+            right: 24,
+            background: 'linear-gradient(45deg, #FF5722 30%, #FF9800 90%)',
+            boxShadow: '0 8px 16px rgba(255, 87, 34, 0.3)',
+            zIndex: 10,
+            '&:hover': {
+              background: 'linear-gradient(45deg, #FF5722 30%, #FF9800 90%)',
+              transform: 'scale(1.1) rotate(10deg)',
+              boxShadow: '0 12px 20px rgba(255, 87, 34, 0.4)',
+            },
+            transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+          }}
+          onClick={handleOpenAskMeAny}
+          className="pulse-animation"
+        >
+          <QuestionAnswerIcon />
+        </Fab>
+      </Zoom>
+      
       <Box
         sx={{
           minHeight: '100vh',
@@ -228,8 +380,15 @@ const QuizHome = () => {
             mb: 6,
             position: 'relative',
             zIndex: 1,
+            flexDirection: { xs: 'column', sm: 'row' },
+            gap: { xs: 2, sm: 0 },
           }}>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: { xs: 1, sm: 2 },
+            }}>
               <Typography
                 variant="h2"
                 component="h1"
@@ -242,6 +401,7 @@ const QuizHome = () => {
                   WebkitTextFillColor: 'transparent',
                   textShadow: '0 2px 10px rgba(33, 150, 243, 0.3)',
                   position: 'relative',
+                  fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
                 }}
                 className="animate-float"
               >
@@ -261,7 +421,6 @@ const QuizHome = () => {
               
               <Box 
                 sx={{ 
-                  ml: 2, 
                   display: 'flex', 
                   alignItems: 'center',
                   background: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
@@ -281,7 +440,13 @@ const QuizHome = () => {
               </Box>
             </Box>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 2,
+              justifyContent: { xs: 'flex-end', sm: 'flex-end' },
+              width: { xs: '100%', sm: 'auto' },
+            }}>
               <Tooltip title="Notifications" arrow TransitionComponent={Zoom}>
                 <IconButton 
                   className="animate-pulse"
@@ -298,7 +463,7 @@ const QuizHome = () => {
                 </IconButton>
               </Tooltip>
               
-              <Tooltip title="about" arrow TransitionComponent={Zoom}>
+              <Tooltip title="Settings" arrow TransitionComponent={Zoom}>
                 <IconButton 
                   className="animate-pulse"
                   sx={{ 
@@ -309,8 +474,26 @@ const QuizHome = () => {
                       transform: 'translateY(-2px)',
                     }
                   }}
+                  onClick={handleOpenUserProfile}
                 >
-                  <ArrowBackOutlined onClick={() => navigate('/about')}/>
+                  <SettingsIcon />
+                </IconButton>
+              </Tooltip>
+              
+              <Tooltip title="About" arrow TransitionComponent={Zoom}>
+                <IconButton 
+                  className="animate-pulse"
+                  sx={{ 
+                    backgroundColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      backgroundColor: darkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.1)',
+                      transform: 'translateY(-2px)',
+                    }
+                  }}
+                  onClick={() => navigate('/about')}
+                >
+                  <ArrowBackOutlined />
                 </IconButton>
               </Tooltip>
               
@@ -318,8 +501,8 @@ const QuizHome = () => {
                 src={user?.imageUrl}
                 alt={user?.fullName || 'User'}
                 sx={{ 
-                  width: 40, 
-                  height: 40, 
+                  width: { xs: 36, sm: 40 }, 
+                  height: { xs: 36, sm: 40 }, 
                   cursor: 'pointer',
                   boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
                   border: '2px solid #fff',
@@ -366,6 +549,10 @@ const QuizHome = () => {
                   {user?.fullName || 'User'}
                 </MenuItem>
                 <Divider />
+                <MenuItem onClick={handleOpenUserProfile}>
+                  <SettingsIcon sx={{ mr: 1 }} />
+                  Profile Settings
+                </MenuItem>
                 <MenuItem onClick={handleSignOut}>
                   <LogoutIcon sx={{ mr: 1 }} />
                   Sign Out
@@ -375,14 +562,14 @@ const QuizHome = () => {
           </Box>
         </Fade>
 
-        <Grid container spacing={4}>
+        <Grid container spacing={{ xs: 2, sm: 3, md: 4 }}>
           {features.map((feature, index) => (
             <Grid item xs={12} sm={6} md={3} key={index}>
               <Fade in={mounted} timeout={800 + feature.delay}>
                 <Paper
                   elevation={6}
                   sx={{
-                    p: 3,
+                    p: { xs: 2, sm: 3 },
                     height: '100%',
                     display: 'flex',
                     flexDirection: 'column',
@@ -395,7 +582,7 @@ const QuizHome = () => {
                     backgroundColor: darkMode ? 'var(--card-bg)' : 'var(--bg-primary)',
                     color: 'var(--text-primary)',
                     '&:hover': {
-                      transform: 'translateY(-12px) scale(1.02)',
+                      transform: { xs: 'translateY(-8px) scale(1.01)', sm: 'translateY(-12px) scale(1.02)' },
                       boxShadow: '0 30px 60px rgba(0,0,0,0.12)',
                       '& .feature-icon-container': {
                         transform: 'scale(1.1)',
@@ -536,14 +723,21 @@ const QuizHome = () => {
 
         {/* Recent Flashcards Section */}
         {recentFlashcards.length > 0 && (
-          <Box sx={{ width: '100%', mt: 8 }}>
+          <Box sx={{ width: '100%', mt: { xs: 4, sm: 6, md: 8 } }}>
             <Fade in={mounted} timeout={1200}>
               <Box>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: { xs: 'flex-start', sm: 'center' }, 
+                  mb: 4,
+                  flexDirection: { xs: 'column', sm: 'row' },
+                  gap: { xs: 2, sm: 0 },
+                }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <FlipIcon 
                       sx={{ 
-                        fontSize: 32, 
+                        fontSize: { xs: 24, sm: 32 }, 
                         color: '#ff9800',
                         animation: 'rotate 8s linear infinite',
                       }} 
@@ -557,6 +751,7 @@ const QuizHome = () => {
                         textFillColor: 'transparent',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
+                        fontSize: { xs: '1.5rem', sm: '2rem', md: '2.125rem' },
                       }}
                     >
                       Recent Flashcards
@@ -567,7 +762,7 @@ const QuizHome = () => {
                     variant="outlined"
                     color="warning"
                     endIcon={<ArrowIcon />}
-                    onClick={() => navigate(`/flashcards/${recentQuizzes[0]?.quiz_id}`)}
+                    onClick={() => navigate('/recent')}
                     sx={{ 
                       borderRadius: 30,
                       px: 3,
@@ -579,17 +774,17 @@ const QuizHome = () => {
                       }
                     }}
                   >
-                    View All
+                    View All Quizzes
                   </Button>
                 </Box>
                 
-                <Grid container spacing={3}>
+                <Grid container spacing={{ xs: 2, sm: 3 }}>
                   {recentFlashcards.map((flashcard, index) => (
-                    <Grid item xs={12} sm={6} md={3} key={index}>
+                    <Grid item xs={12} sm={6} md={index === 4 ? 12 : 6} lg={index === 4 ? 12 : 3} key={index}>
                       <Fade in={mounted} timeout={1200 + (index * 200)}>
                         <Card 
                           sx={{ 
-                            height: 220,
+                            height: { xs: 180, sm: 200, md: 220 },
                             position: 'relative',
                             transformStyle: 'preserve-3d',
                             transition: 'transform 0.6s',
@@ -603,7 +798,7 @@ const QuizHome = () => {
                               boxShadow: '0 15px 35px rgba(0, 0, 0, 0.2)',
                             }
                           }}
-                          onClick={() => handleFlipCard(index)}
+                          onClick={() => handleFlashcardClick(index, flashcard.quiz_id)}
                           className="card-3d"
                         >
                           {/* Front side */}
@@ -618,13 +813,27 @@ const QuizHome = () => {
                               p: 2,
                             }}
                           >
-                            <Chip 
-                              label="Term" 
-                              color="warning" 
-                              size="small" 
-                              icon={<LearnIcon />}
-                              sx={{ alignSelf: 'flex-start', mb: 1 }}
-                            />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', mb: 1 }}>
+                              <Chip 
+                                label="Term" 
+                                color="warning" 
+                                size="small" 
+                                icon={<LearnIcon />}
+                              />
+                              <Chip
+                                label={flashcard.quiz_id}
+                                size="small"
+                                variant="outlined"
+                                sx={{ 
+                                  maxWidth: '60%',
+                                  '& .MuiChip-label': {
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                  }
+                                }}
+                              />
+                            </Box>
                             
                             <CardContent sx={{ 
                               display: 'flex', 
@@ -721,9 +930,63 @@ const QuizHome = () => {
             </Fade>
           </Box>
         )}
+
+        {/* Footer Section */}
+        <Box 
+          sx={{ 
+            width: '100%', 
+            mt: { xs: 6, sm: 8, md: 10 },
+            pt: 4,
+            borderTop: '1px solid',
+            borderColor: darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+            textAlign: 'center',
+          }}
+        >
+          <Fade in={mounted} timeout={1500}>
+            <Box>
+              <Typography 
+                variant="body2" 
+                color="text.secondary"
+                sx={{ 
+                  opacity: 0.8,
+                  fontWeight: 500,
+                  mb: 1,
+                }}
+              >
+                © Copyright 2025 by Team Alpha - All Rights Reserved
+              </Typography>
+            </Box>
+          </Fade>
+        </Box>
       </Box>
     </Container>
   );
 };
+
+// Add this CSS to your global styles or create a new style tag
+const styles = `
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(255, 87, 34, 0.7);
+    }
+    70% {
+      box-shadow: 0 0 0 15px rgba(255, 87, 34, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(255, 87, 34, 0);
+    }
+  }
+  
+  .pulse-animation {
+    animation: pulse 2s infinite;
+  }
+`;
+
+// Add the styles to the document
+if (typeof document !== 'undefined') {
+  const styleElement = document.createElement('style');
+  styleElement.innerHTML = styles;
+  document.head.appendChild(styleElement);
+}
 
 export default QuizHome; 
