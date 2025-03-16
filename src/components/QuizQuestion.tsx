@@ -23,6 +23,7 @@ import {
   DialogContent,
   DialogActions,
   Grid,
+  TextField,
 } from '@mui/material';
 import {
   LibraryBooks as FlashcardIcon,
@@ -51,7 +52,7 @@ const QuizQuestion = () => {
   const [score, setScore] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [playerName] = useState(localStorage.getItem('playerName') || '');
+  const [playerName, setPlayerName] = useState(localStorage.getItem('playerName') || '');
   const [showConfetti, setShowConfetti] = useState(false);
   const [answerSubmitted, setAnswerSubmitted] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
@@ -151,6 +152,9 @@ const QuizQuestion = () => {
         setSubmittingScore(false);
         return;
       }
+      
+      // Save player name to localStorage for future use
+      localStorage.setItem('playerName', playerName);
       
       // Make sure quizId is valid
       if (!quizId) {
@@ -373,8 +377,26 @@ const QuizQuestion = () => {
 
           <Box sx={{ textAlign: 'center', mt: 2 }}>
             <Typography variant="body1" color="text.secondary" gutterBottom>
-              Submit your score to see how you compare with others!
+              Enter your name and submit your score to see how you compare with others!
             </Typography>
+            
+            <TextField
+              label="Your Name"
+              variant="outlined"
+              fullWidth
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+              sx={{ 
+                mt: 2,
+                mb: 2,
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                }
+              }}
+              placeholder="Enter your name"
+              error={!playerName.trim()}
+              helperText={!playerName.trim() ? "Name is required to submit your score" : ""}
+            />
           </Box>
         </DialogContent>
         <DialogActions sx={{ p: 3, justifyContent: 'center' }}>
@@ -389,7 +411,7 @@ const QuizQuestion = () => {
           <Button 
             variant="contained" 
             onClick={handleSubmitScore}
-            disabled={submittingScore}
+            disabled={submittingScore || !playerName.trim()}
             startIcon={submittingScore ? <CircularProgress size={20} /> : <SendIcon />}
             sx={{ 
               borderRadius: 2, 
