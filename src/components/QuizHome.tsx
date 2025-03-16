@@ -27,6 +27,7 @@ import {
   DialogContent,
   Backdrop,
   Fab,
+  Stack,
 } from '@mui/material';
 import {
   Add as CreateIcon,
@@ -48,6 +49,7 @@ import {
   ArrowBackOutlined,
   QuestionAnswer as QuestionAnswerIcon,
   Close as CloseIcon,
+  SportsKabaddi as BattleIcon,
 } from '@mui/icons-material';
 import { api } from '../services/api';
 import { Flashcard, RecentQuiz } from '../types';
@@ -71,6 +73,7 @@ const QuizHome = () => {
   const [flippedCard, setFlippedCard] = useState<number | null>(null);
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [showAskMeAny, setShowAskMeAny] = useState(false);
+  const [showQuizBattle, setShowQuizBattle] = useState(false);
 
   // Animation effect when component mounts
   useEffect(() => {
@@ -187,6 +190,12 @@ const QuizHome = () => {
     setShowAskMeAny(false);
   };
 
+  const handleOpenQuizBattle = () => {
+    // Open in a new tab instead of showing dialog
+    window.open('http://localhost:3000', '_blank');
+  };
+
+
   const features = [
     {
       title: 'Create Quiz',
@@ -302,7 +311,7 @@ const QuizHome = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Backdrop for blur effect */}
+      {/* Backdrop for blur effect - only for AskMeAny */}
       <Backdrop
         sx={{ 
           color: '#fff', 
@@ -313,31 +322,61 @@ const QuizHome = () => {
         onClick={handleCloseAskMeAny}
       />
       
-      {/* Floating AskMeAny Button */}
-      <Zoom in={mounted} style={{ transitionDelay: '500ms' }}>
-        <Fab
-          color="secondary"
-          aria-label="Ask Me Any"
-          sx={{
-            position: 'fixed',
-            bottom: 24,
-            right: 24,
-            background: 'linear-gradient(45deg, #FF5722 30%, #FF9800 90%)',
-            boxShadow: '0 8px 16px rgba(255, 87, 34, 0.3)',
-            zIndex: 10,
-            '&:hover': {
+      {/* Floating Action Buttons */}
+      <Stack 
+        direction="column" 
+        spacing={2}
+        sx={{
+          position: 'fixed',
+          bottom: 24,
+          right: 24,
+          zIndex: 10,
+        }}
+      >
+        {/* Quiz Battle Button */}
+        <Zoom in={mounted} style={{ transitionDelay: '600ms' }}>
+          <Fab
+            color="primary"
+            aria-label="Quiz Battle"
+            sx={{
+              background: 'linear-gradient(45deg, #673AB7 30%, #9C27B0 90%)',
+              boxShadow: '0 8px 16px rgba(103, 58, 183, 0.3)',
+              '&:hover': {
+                background: 'linear-gradient(45deg, #673AB7 30%, #9C27B0 90%)',
+                transform: 'scale(1.1) rotate(-10deg)',
+                boxShadow: '0 12px 20px rgba(103, 58, 183, 0.4)',
+              },
+              transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            }}
+            onClick={handleOpenQuizBattle}
+            className="pulse-animation-purple"
+          >
+            <BattleIcon />
+          </Fab>
+        </Zoom>
+        
+        {/* AskMeAny Button */}
+        <Zoom in={mounted} style={{ transitionDelay: '500ms' }}>
+          <Fab
+            color="secondary"
+            aria-label="Ask Me Any"
+            sx={{
               background: 'linear-gradient(45deg, #FF5722 30%, #FF9800 90%)',
-              transform: 'scale(1.1) rotate(10deg)',
-              boxShadow: '0 12px 20px rgba(255, 87, 34, 0.4)',
-            },
-            transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-          }}
-          onClick={handleOpenAskMeAny}
-          className="pulse-animation"
-        >
-          <QuestionAnswerIcon />
-        </Fab>
-      </Zoom>
+              boxShadow: '0 8px 16px rgba(255, 87, 34, 0.3)',
+              '&:hover': {
+                background: 'linear-gradient(45deg, #FF5722 30%, #FF9800 90%)',
+                transform: 'scale(1.1) rotate(10deg)',
+                boxShadow: '0 12px 20px rgba(255, 87, 34, 0.4)',
+              },
+              transition: 'all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+            }}
+            onClick={handleOpenAskMeAny}
+            className="pulse-animation-orange"
+          >
+            <QuestionAnswerIcon />
+          </Fab>
+        </Zoom>
+      </Stack>
       
       <Box
         sx={{
@@ -965,7 +1004,7 @@ const QuizHome = () => {
 
 // Add this CSS to your global styles or create a new style tag
 const styles = `
-  @keyframes pulse {
+  @keyframes pulse-orange {
     0% {
       box-shadow: 0 0 0 0 rgba(255, 87, 34, 0.7);
     }
@@ -977,8 +1016,24 @@ const styles = `
     }
   }
   
-  .pulse-animation {
-    animation: pulse 2s infinite;
+  @keyframes pulse-purple {
+    0% {
+      box-shadow: 0 0 0 0 rgba(103, 58, 183, 0.7);
+    }
+    70% {
+      box-shadow: 0 0 0 15px rgba(103, 58, 183, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(103, 58, 183, 0);
+    }
+  }
+  
+  .pulse-animation-orange {
+    animation: pulse-orange 2s infinite;
+  }
+  
+  .pulse-animation-purple {
+    animation: pulse-purple 2s infinite;
   }
 `;
 
