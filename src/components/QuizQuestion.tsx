@@ -102,7 +102,6 @@ const QuizQuestion = () => {
       setLoading(false);
     } catch (err) {
       setError('Failed to fetch questions');
-      console.error(err);
       setLoading(false);
     }
   };
@@ -146,15 +145,37 @@ const QuizQuestion = () => {
   const handleSubmitScore = async () => {
     setSubmittingScore(true);
     try {
-      await api.submitScore({
-        quizId: quizId!,
-        playerName,
-        score: score + (isCorrect ? 1 : 0),
-      });
+      // Make sure playerName is not empty
+      if (!playerName || playerName.trim() === '') {
+        alert('Please enter your name before submitting your score.');
+        setSubmittingScore(false);
+        return;
+      }
+      
+      // Make sure quizId is valid
+      if (!quizId) {
+        alert('Invalid quiz ID.');
+        setSubmittingScore(false);
+        return;
+      }
+      
+      // Calculate final score
+      const finalScore = score + (isCorrect && answerSubmitted ? 1 : 0);
+      
+      // Prepare score data
+      const scoreData = {
+        quizId: quizId,
+        playerName: playerName,
+        score: finalScore
+      };
+      
+      await api.submitScore(scoreData);
       navigate(`/leaderboard/${quizId}`);
     } catch (err) {
-      console.error('Failed to submit score:', err);
+      alert(`Failed to submit score: ${err instanceof Error ? err.message : 'Unknown error'}`);
       navigate(`/leaderboard/${quizId}`);
+    } finally {
+      setSubmittingScore(false);
     }
   };
 

@@ -52,12 +52,39 @@ export const api = {
 
   // Score related endpoints
   submitScore: async (data: { quizId: string; playerName: string; score: number }): Promise<void> => {
-    const response = await fetch(`${BASE_URL}/submit_score`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
-    });
-    if (!response.ok) throw new Error('Failed to submit score');
+    const apiData = {
+      quizId: data.quizId,
+      playerName: data.playerName,
+      score: data.score
+    };
+    
+    try {
+      const response = await fetch(`${BASE_URL}/submit_score`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(apiData),
+      });
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to submit score';
+        try {
+          const responseBody = await response.text();
+          if (responseBody) {
+            errorMessage = `${errorMessage}: ${responseBody}`;
+          } else {
+            errorMessage = `${errorMessage}: ${response.status} ${response.statusText}`;
+          }
+        } catch (e) {
+          errorMessage = `${errorMessage}: ${response.status} ${response.statusText}`;
+        }
+        throw new Error(errorMessage);
+      }
+    } catch (error) {
+      throw error;
+    }
   },
 
   getLeaderboard: async (quizId: string): Promise<LeaderboardEntry[]> => {
