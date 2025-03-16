@@ -103,7 +103,7 @@ const MemberRole = styled(motion.p)`
 
 const teamMembers = [
   { name: 'Aditya', role: 'Team Lead' },
-  { name: 'Athaiya', role: 'Developer' },
+  { name: 'Athai', role: 'Developer' },
   { name: 'Soumya', role: 'Developer' },
   { name: 'Ankit', role: 'Developer' },
   { name: 'Chayan', role: 'Developer' },
