@@ -6,7 +6,7 @@ declare global {
     env: Record<string, string>;
   }
 }
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://gitquizserver-production.up.railway.app/api' ;
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://git-quiz-server.onrender.com/api' ;
 // Define the QuizResult interface locally if it's not properly imported
 interface QuizResult {
   score: number;
