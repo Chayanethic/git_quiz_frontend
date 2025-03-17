@@ -192,7 +192,7 @@ const QuizHome = () => {
 
   const handleOpenQuizBattle = () => {
     // Open in a new tab instead of showing dialog
-    window.open('http://localhost:3000', '_blank');
+    window.open('https://quiz-battle.onrender.com/', '_blank');
   };
 
 
