@@ -25,6 +25,8 @@ import {
   IconButton,
   Tooltip,
   Slider,
+  Divider,
+  Chip,
 } from '@mui/material';
 import {
   Create as CreateIcon,
@@ -34,6 +36,8 @@ import {
   School as SchoolIcon,
   QuestionAnswer as QuestionIcon,
   Settings as SettingsIcon,
+  Upload as UploadIcon,
+  PictureAsPdf as PdfIcon,
 } from '@mui/icons-material';
 import { api } from '../services/api';
 
@@ -48,6 +52,9 @@ const CreateQuiz = () => {
   const [error, setError] = useState('');
   const [activeStep, setActiveStep] = useState(0);
   const [mounted, setMounted] = useState(false);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [totalPages, setTotalPages] = useState(1);
+  const [pageRange, setPageRange] = useState<[number, number]>([1, 1]);
   const [formData, setFormData] = useState<{
     text: string;
     content_name: string;
@@ -73,6 +80,13 @@ const CreateQuiz = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Only submit if we're on the last step
+    if (activeStep !== steps.length - 1) {
+      handleNext();
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -84,11 +98,60 @@ const CreateQuiz = () => {
     }
 
     try {
-      const response = await api.createQuiz({ ...formData, user_id: user!.id }) as CreateQuizResponse;
+      let response;
+      
+      if (pdfFile) {
+        // Create FormData for file upload
+        const formDataObj = new FormData();
+        formDataObj.append('pdf', pdfFile);
+        formDataObj.append('startPage', pageRange[0].toString());
+        formDataObj.append('endPage', pageRange[1].toString());
+        formDataObj.append('question_type', formData.question_type);
+        formDataObj.append('num_options', formData.num_options.toString());
+        formDataObj.append('num_questions', Math.min(Math.max(formData.num_questions, 1), 50).toString()); // Ensure between 1 and 50
+        formDataObj.append('include_flashcards', formData.include_flashcards!.toString());
+        formDataObj.append('content_name', formData.content_name);
+        formDataObj.append('user_id', user!.id);
+
+        // Make the request and wait for response
+        const uploadResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/upload_pdf`, {
+          method: 'POST',
+          body: formDataObj
+        });
+
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json();
+          throw new Error(errorData.error || 'Failed to upload PDF');
+        }
+
+        response = await uploadResponse.json();
+      } else {
+        // Validate text content is provided if no PDF
+        if (!formData.text.trim()) {
+          setError('Please provide either a PDF file or enter text content.');
+          setLoading(false);
+          return;
+        }
+        
+        // Ensure number of questions is within limits for text input as well
+        const validatedFormData = {
+          ...formData,
+          num_questions: Math.min(Math.max(formData.num_questions!, 1), 50)
+        };
+        
+        response = await api.createQuiz({ ...validatedFormData, user_id: user!.id });
+      }
+
+      // Check if we have a valid response with quiz_id
+      if (!response || !response.quiz_id) {
+        console.error('Invalid response:', response);
+        throw new Error('No quiz ID received from server');
+      }
+      
       navigate(`/quiz/${response.quiz_id}`);
     } catch (err) {
-      setError('Failed to create quiz. Please try again.');
-      console.error(err);
+      console.error('Error creating quiz:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create quiz. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -103,23 +166,41 @@ const CreateQuiz = () => {
     }));
   };
 
-  const handleNext = () => {
-    setActiveStep((prevActiveStep) => prevActiveStep + 1);
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setPdfFile(file);
+      // For now, we'll set a dummy value for total pages
+      // In a real implementation, you might want to read this from the PDF
+      const dummyTotalPages = 10;
+      setTotalPages(dummyTotalPages);
+      setPageRange([1, dummyTotalPages]);
+      
+      // Clear the text input since we're using PDF
+      setFormData(prev => ({
+        ...prev,
+        text: ''
+      }));
+    } else {
+      setPdfFile(null);
+      setTotalPages(1);
+      setPageRange([1, 1]);
+    }
   };
 
-  const handleBack = () => {
-
-    setActiveStep((prevActiveStep) => prevActiveStep - 1);
+  const handlePageRangeChange = (event: Event, newValue: number | number[]) => {
+    setPageRange(newValue as [number, number]);
   };
 
   // Add marks for the slider
   const questionMarks = [
-    {value: 1, label: '1'},
-    { value: 3, label: '3' },
+    { value: 1, label: '1' },
     { value: 5, label: '5' },
-    { value: 7, label: '7' },
     { value: 10, label: '10' },
     { value: 15, label: '15' },
+    { value: 20, label: '20' },
+    { value: 30, label: '30' },
+    { value: 50, label: '50' },
   ];
 
   // Handle slider change
@@ -172,39 +253,89 @@ const CreateQuiz = () => {
           <Fade in={activeStep === 1} timeout={500}>
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-              <SchoolIcon sx={{ fontSize: 30, mr: 2, color: 'primary.main' }} />
-              <Typography variant="h5" color="primary">Content</Typography>
+                <SchoolIcon sx={{ fontSize: 30, mr: 2, color: 'primary.main' }} />
+                <Typography variant="h5" color="primary">Content</Typography>
               </Box>
+
+              <Box sx={{ mb: 4, p: 3, border: '2px dashed', borderColor: 'primary.main', borderRadius: 2 }}>
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleFileChange}
+                  style={{ display: 'none' }}
+                  id="pdf-upload"
+                />
+                <label htmlFor="pdf-upload">
+                  <Button
+                    variant="contained"
+                    component="span"
+                    startIcon={<UploadIcon />}
+                    fullWidth
+                    sx={{ mb: 2 }}
+                  >
+                    Upload PDF
+                  </Button>
+                </label>
+                
+                {pdfFile && (
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      <PdfIcon sx={{ verticalAlign: 'middle', mr: 1 }} />
+                      {pdfFile.name}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" gutterBottom>
+                      Total Pages: {totalPages}
+                    </Typography>
+                    <Typography variant="body2" gutterBottom>
+                      Select Page Range:
+                    </Typography>
+                    <Slider
+                      value={pageRange}
+                      onChange={handlePageRangeChange}
+                      valueLabelDisplay="auto"
+                      min={1}
+                      max={totalPages}
+                      marks
+                      sx={{ mt: 2 }}
+                    />
+                  </Box>
+                )}
+              </Box>
+
+              <Divider sx={{ my: 2 }}>
+                <Chip label="OR" />
+              </Divider>
               
               <TextField
-              fullWidth
-              label="Content Text"
-              name="text"
-              value={formData.text}
-              onChange={handleChange}
-              required
-              multiline
-              rows={6}
-              inputProps={{ maxLength: 1000 }}
-              sx={{ 
-                mb: 3,
-                '& .MuiOutlinedInput-root': {
-                '&:hover fieldset': {
-                  borderColor: 'primary.main',
-                },
-                '&.Mui-focused fieldset': {
-                  borderColor: 'primary.main',
-                  borderWidth: '2px',
-                },
-                },
-              }}
-              InputProps={{
-                sx: { borderRadius: 2 }
-              }}
-              placeholder="Enter the content from which questions will be generated (max 1000 words)..."
+                fullWidth
+                label="Content Text"
+                name="text"
+                value={formData.text}
+                onChange={handleChange}
+                required={!pdfFile}
+                multiline
+                rows={6}
+                inputProps={{ maxLength: 1000 }}
+                sx={{ 
+                  mb: 3,
+                  '& .MuiOutlinedInput-root': {
+                    '&:hover fieldset': {
+                      borderColor: 'primary.main',
+                    },
+                    '&.Mui-focused fieldset': {
+                      borderColor: 'primary.main',
+                      borderWidth: '2px',
+                    },
+                  },
+                }}
+                InputProps={{
+                  sx: { borderRadius: 2 }
+                }}
+                placeholder="Enter the content from which questions will be generated (max 1000 words)..."
+                disabled={!!pdfFile}
               />
               <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-              {formData.text.length} / 1000 characters
+                {formData.text.length} / 1000 characters
               </Typography>
             </Box>
           </Fade>
@@ -249,15 +380,15 @@ const CreateQuiz = () => {
 
               <Box sx={{ mb: 4 }}>
                 <Typography variant="subtitle1" gutterBottom color="primary">
-                  Number of Questions
+                  Number of Questions (1-50)
                 </Typography>
                 <Slider
-                  value={formData.num_questions ?? 5}
+                  value={formData.num_questions ?? 10}
                   onChange={handleSliderChange}
                   step={null}
                   marks={questionMarks}
                   min={1}
-                  max={15}
+                  max={50}
                   valueLabelDisplay="auto"
                   sx={{
                     color: 'primary.main',
@@ -274,7 +405,7 @@ const CreateQuiz = () => {
                   }}
                 />
                 <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                  Select the number of questions for your quiz (default: 5)
+                  Select the number of questions for your quiz (default: 10)
                 </Typography>
               </Box>
 
@@ -338,6 +469,14 @@ const CreateQuiz = () => {
       default:
         return 'Unknown step';
     }
+  };
+
+  const handleNext = () => {
+    setActiveStep((prevActiveStep) => prevActiveStep + 1);
+  };
+
+  const handleBack = () => {
+    setActiveStep((prevActiveStep) => prevActiveStep - 1);
   };
 
   return (

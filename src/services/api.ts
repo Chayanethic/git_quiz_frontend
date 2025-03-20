@@ -6,7 +6,7 @@ declare global {
     env: Record<string, string>;
   }
 }
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://git-quiz-server.onrender.com/api' ;
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api' ;
 // Define the QuizResult interface locally if it's not properly imported
 interface QuizResult {
   score: number;
@@ -96,6 +96,15 @@ export const api = {
   getQuizResult: async (quizId: string): Promise<QuizResult> => {
     const response = await fetch(`${BASE_URL}/leaderboard/${quizId}`);
     if (!response.ok) throw new Error('Failed to fetch quiz result');
+    return response.json();
+  },
+
+  uploadPdf: async (formData: FormData): Promise<{ quiz_id: string }> => {
+    const response = await fetch(`${BASE_URL}/upload_pdf`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) throw new Error('Failed to upload PDF');
     return response.json();
   },
 }; 
