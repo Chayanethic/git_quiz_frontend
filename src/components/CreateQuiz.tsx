@@ -27,6 +27,10 @@ import {
   Slider,
   Divider,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import {
   Create as CreateIcon,
@@ -38,16 +42,25 @@ import {
   Settings as SettingsIcon,
   Upload as UploadIcon,
   PictureAsPdf as PdfIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material';
-import { api } from '../services/api';
-
-interface CreateQuizResponse {
-  quiz_id: string;
-}
+import { api, ContentCreateResponse } from '../services/api';
+import { useSubscription } from '../context/SubscriptionContext';
+import { Link } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import { IoInformationCircleOutline } from 'react-icons/io5';
 
 const CreateQuiz = () => {
   const navigate = useNavigate();
   const { user } = useUser();
+  const { 
+    canGenerate, 
+    remainingFree, 
+    subscriptionStatus, 
+    refreshSubscription,
+    setRemainingFreeCount
+  } = useSubscription();
+  
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [activeStep, setActiveStep] = useState(0);
@@ -55,6 +68,11 @@ const CreateQuiz = () => {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [totalPages, setTotalPages] = useState(1);
   const [pageRange, setPageRange] = useState<[number, number]>([1, 1]);
+  const [showSubscriptionDialog, setShowSubscriptionDialog] = useState(false);
+  
+  // Define activeTab state based on whether a PDF file is present
+  const activeTab = pdfFile ? 'pdf' : 'text';
+  
   const [formData, setFormData] = useState<{
     text: string;
     content_name: string;
@@ -68,90 +86,131 @@ const CreateQuiz = () => {
     question_type: 'multiple_choice',
     num_options: 4,
     num_questions: null,
-    include_flashcards: null,
+    include_flashcards: false,
   });
 
   // Animation effect when component mounts
   useEffect(() => {
     setMounted(true);
+    // Refresh subscription status when component mounts
+    refreshSubscription();
   }, []);
+
+  // Debug output
+  useEffect(() => {
+    console.log('Current subscription state:', { 
+      canGenerate, 
+      remainingFree, 
+      subscriptionStatus 
+    });
+  }, [canGenerate, remainingFree, subscriptionStatus]);
 
   const steps = ['Quiz Details', 'Content', 'Question Settings'];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Only submit if we're on the last step
-    if (activeStep !== steps.length - 1) {
-      handleNext();
+    if (!canGenerate) {
+      toast.error(
+        "You've reached your free generation limit. Please upgrade your subscription to continue.",
+        { position: "top-center" }
+      );
       return;
     }
-
+    
+    // Validate form data before submission
+    if (formData.content_name.trim() === '') {
+      toast.error("Please provide a quiz name", { position: "top-center" });
+      setActiveStep(0); // Go back to first step
+      return;
+    }
+    
+    if (formData.num_questions === null) {
+      toast.error("Please select the number of questions", { position: "top-center" });
+      setActiveStep(2); // Go to question settings step
+      return;
+    }
+    
+    if (formData.include_flashcards === null) {
+      toast.error("Please specify whether to include flashcards", { position: "top-center" });
+      setActiveStep(2); // Go to question settings step
+      return;
+    }
+    
+    if (activeTab === 'text' && formData.text.trim() === '') {
+      toast.error("Please provide content text or upload a PDF", { position: "top-center" });
+      setActiveStep(1); // Go to content step
+      return;
+    }
+    
     setLoading(true);
-    setError('');
-
-    // Validation
-    if (!formData.question_type || formData.num_questions === null || formData.include_flashcards === null) {
-      setError('Please fill in all required fields.');
-      setLoading(false);
-      return;
-    }
-
+    
     try {
-      let response;
-      
-      if (pdfFile) {
-        // Create FormData for file upload
-        const formDataObj = new FormData();
-        formDataObj.append('pdf', pdfFile);
-        formDataObj.append('startPage', pageRange[0].toString());
-        formDataObj.append('endPage', pageRange[1].toString());
-        formDataObj.append('question_type', formData.question_type);
-        formDataObj.append('num_options', formData.num_options.toString());
-        formDataObj.append('num_questions', Math.min(Math.max(formData.num_questions, 1), 50).toString()); // Ensure between 1 and 50
-        formDataObj.append('include_flashcards', formData.include_flashcards!.toString());
-        formDataObj.append('content_name', formData.content_name);
-        formDataObj.append('user_id', user!.id);
+      if (activeStep === steps.length - 1) {
+        // Only submit if we're on the last step
+        if (activeTab === 'text') {
+          if (!formData.text.trim()) {
+            setError('Please provide either a PDF file or enter text content.');
+            setLoading(false);
+            return;
+          }
+          
+          // Ensure number of questions is within limits for text input as well
+          const validatedFormData = {
+            ...formData,
+            num_questions: Math.min(Math.max(formData.num_questions || 10, 1), 50)
+          };
+          
+          const response = await api.createQuiz({ ...validatedFormData, user_id: user!.id });
+          console.log('Create quiz response:', response);
+          
+          // Directly update the subscription state with the new value
+          if (response.remaining_free !== undefined) {
+            console.log(`Updating remaining free count to: ${response.remaining_free}`);
+            setRemainingFreeCount(response.remaining_free);
+          }
+          
+          // Navigate to the created quiz
+          navigate(`/quiz/${response.quiz_id}`);
+        } else if (activeTab === 'pdf' && pdfFile) {
+          // Create FormData for file upload
+          const formDataObj = new FormData();
+          formDataObj.append('pdf', pdfFile);
+          formDataObj.append('startPage', pageRange[0].toString());
+          formDataObj.append('endPage', pageRange[1].toString());
+          formDataObj.append('question_type', formData.question_type);
+          formDataObj.append('num_options', formData.num_options.toString());
+          formDataObj.append('num_questions', Math.min(Math.max(formData.num_questions || 10, 1), 50).toString()); // Ensure between 1 and 50
+          formDataObj.append('include_flashcards', formData.include_flashcards === true ? 'true' : 'false');
+          formDataObj.append('content_name', formData.content_name);
+          formDataObj.append('user_id', user!.id);
 
-        // Make the request and wait for response
-        const uploadResponse = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000/api'}/upload_pdf`, {
-          method: 'POST',
-          body: formDataObj
-        });
-
-        if (!uploadResponse.ok) {
-          const errorData = await uploadResponse.json();
-          throw new Error(errorData.error || 'Failed to upload PDF');
+          const response = await api.uploadPdf(formDataObj);
+          console.log('PDF upload response:', response);
+          
+          // Directly update the subscription state with the new value
+          if (response.remaining_free !== undefined) {
+            console.log(`Updating remaining free count to: ${response.remaining_free}`);
+            setRemainingFreeCount(response.remaining_free);
+          }
+          
+          // Navigate to the created quiz
+          navigate(`/quiz/${response.quiz_id}`);
         }
-
-        response = await uploadResponse.json();
+        
+        // Refresh subscription info (as a secondary update)
+        setTimeout(() => refreshSubscription(), 500);
       } else {
-        // Validate text content is provided if no PDF
-        if (!formData.text.trim()) {
-          setError('Please provide either a PDF file or enter text content.');
-          setLoading(false);
-          return;
-        }
-        
-        // Ensure number of questions is within limits for text input as well
-        const validatedFormData = {
-          ...formData,
-          num_questions: Math.min(Math.max(formData.num_questions!, 1), 50)
-        };
-        
-        response = await api.createQuiz({ ...validatedFormData, user_id: user!.id });
+        handleNext();
       }
-
-      // Check if we have a valid response with quiz_id
-      if (!response || !response.quiz_id) {
-        console.error('Invalid response:', response);
-        throw new Error('No quiz ID received from server');
-      }
+    } catch (error: any) {
+      console.error('Error creating quiz:', error);
       
-      navigate(`/quiz/${response.quiz_id}`);
-    } catch (err) {
-      console.error('Error creating quiz:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create quiz. Please try again.');
+      if (error.message.includes('limit')) {
+        toast.error("You've reached your limit. Please upgrade your subscription.");
+      } else {
+        toast.error(error.message || "Failed to create quiz");
+      }
     } finally {
       setLoading(false);
     }
@@ -391,7 +450,7 @@ const CreateQuiz = () => {
                   max={50}
                   valueLabelDisplay="auto"
                   sx={{
-                    color: 'primary.main',
+                    color: formData.num_questions === null ? 'text.disabled' : 'primary.main',
                     '& .MuiSlider-mark': {
                       backgroundColor: '#bfbfbf',
                     },
@@ -404,8 +463,14 @@ const CreateQuiz = () => {
                     },
                   }}
                 />
-                <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-                  Select the number of questions for your quiz (default: 10)
+                <Typography 
+                  variant="caption" 
+                  color={formData.num_questions === null ? "error" : "text.secondary"} 
+                  sx={{ mt: 1, display: 'block' }}
+                >
+                  {formData.num_questions === null 
+                    ? "* Please select the number of questions" 
+                    : `Current selection: ${formData.num_questions} questions`}
                 </Typography>
               </Box>
 
@@ -472,6 +537,31 @@ const CreateQuiz = () => {
   };
 
   const handleNext = () => {
+    // Validate based on current step
+    if (activeStep === 0 && formData.content_name.trim() === '') {
+      toast.error("Please provide a quiz name", { position: "top-center" });
+      return;
+    }
+    
+    if (activeStep === 1) {
+      if (activeTab === 'text' && formData.text.trim() === '' && !pdfFile) {
+        toast.error("Please provide content text or upload a PDF", { position: "top-center" });
+        return;
+      }
+    }
+    
+    if (activeStep === 2) {
+      if (formData.num_questions === null) {
+        toast.error("Please select the number of questions", { position: "top-center" });
+        return;
+      }
+      
+      if (formData.include_flashcards === null) {
+        toast.error("Please specify whether to include flashcards", { position: "top-center" });
+        return;
+      }
+    }
+    
     setActiveStep((prevActiveStep) => prevActiveStep + 1);
   };
 
@@ -481,144 +571,186 @@ const CreateQuiz = () => {
 
   return (
     <Container maxWidth="md">
-      <Box 
-        sx={{ 
-          py: 4,
-          opacity: mounted ? 1 : 0,
-          transform: mounted ? 'translateY(0)' : 'translateY(20px)',
-          transition: 'opacity 0.5s ease, transform 0.5s ease',
-        }}
-      >
-        <Paper 
-          elevation={6} 
-          sx={{ 
-            p: 4, 
-            borderRadius: 4,
-            background: 'linear-gradient(to bottom right, #ffffff, #f5f5f5)',
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.1)',
-            position: 'relative',
-            overflow: 'hidden',
-          }}
-          className="shadow-lg"
-        >
-          <Box 
-            sx={{ 
-              position: 'absolute', 
-              top: 0, 
-              left: 0, 
-              right: 0, 
-              height: '5px', 
-              background: 'linear-gradient(90deg, #2196f3, #21cbf3)' 
-            }} 
-          />
-          
-          <Typography 
-            variant="h4" 
-            gutterBottom 
-            color="primary" 
-            align="center"
-            sx={{ 
-              mb: 4,
-              fontWeight: 'bold',
-              background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-              backgroundClip: 'text',
-              textFillColor: 'transparent',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
-          >
-            Create New Quiz
-          </Typography>
+      <Fade in={mounted}>
+        <Box sx={{ my: 4 }}>
+          <Paper elevation={3} sx={{ p: 4 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+              <CreateIcon sx={{ mr: 2 }} />
+              <Typography variant="h4" component="h1">
+                Create New Quiz
+              </Typography>
+            </Box>
 
-          {error && (
-            <Zoom in={!!error}>
+            {/* Subscription Status with Debug Info */}
+            <Box 
+              sx={{ 
+                mb: 3, 
+                p: 2, 
+                borderRadius: 1,
+                border: '1px solid',
+                borderColor: 'divider',
+                bgcolor: 'background.default'
+              }}
+            >
+              {subscriptionStatus === 'free' ? (
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box>
+                    <Typography variant="subtitle1" fontWeight="bold">
+                      Free Plan
+                    </Typography>
+                    <Typography variant="body2" color={remainingFree < 3 ? "error" : "text.secondary"}>
+                      {remainingFree} generation{remainingFree !== 1 ? 's' : ''} remaining
+                    </Typography>
+                  </Box>
+                  {remainingFree < 5 && (
+                    <Button 
+                      variant="contained" 
+                      color="primary" 
+                      component={Link} 
+                      to="/subscription"
+                      size="small"
+                    >
+                      Upgrade Now
+                    </Button>
+                  )}
+                </Box>
+              ) : (
+                <Box>
+                  <Typography variant="subtitle1" fontWeight="bold">
+                    {subscriptionStatus.charAt(0).toUpperCase() + subscriptionStatus.slice(1)} Plan
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Unlimited generations
+                  </Typography>
+                </Box>
+              )}
+            </Box>
+
+            {error && (
               <Alert severity="error" sx={{ mb: 3 }}>
                 {error}
               </Alert>
-            </Zoom>
-          )}
+            )}
 
-          <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
-            {steps.map((label) => (
-              <Step key={label}>
-                <StepLabel>{label}</StepLabel>
-              </Step>
-            ))}
-          </Stepper>
+            <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+              {steps.map((label) => (
+                <Step key={label}>
+                  <StepLabel>{label}</StepLabel>
+                </Step>
+              ))}
+            </Stepper>
 
-          <form onSubmit={handleSubmit}>
-            {getStepContent(activeStep)}
+            <form onSubmit={handleSubmit}>
+              {getStepContent(activeStep)}
 
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-              <Button
-                variant="outlined"
-                onClick={handleBack}
-                disabled={activeStep === 0}
-                startIcon={<BackIcon />}
-                sx={{ 
-                  borderRadius: 30,
-                  px: 3,
-                  boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
-                  transition: 'all 0.3s ease',
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: '0 6px 12px rgba(0, 0, 0, 0.15)',
-                  }
-                }}
-              >
-                Back
-              </Button>
-              
-              <Box>
-                {activeStep === steps.length - 1 ? (
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    disabled={loading}
-                    endIcon={loading ? undefined : <SendIcon />}
-                    sx={{ 
-                      borderRadius: 30,
-                      px: 3,
-                      background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-                      boxShadow: '0 4px 8px rgba(33, 150, 243, 0.3)',
-                      transition: 'all 0.3s ease',
-                      '&:hover': {
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+                <Button
+                  variant="outlined"
+                  onClick={handleBack}
+                  disabled={activeStep === 0}
+                  startIcon={<BackIcon />}
+                  sx={{ 
+                    borderRadius: 30,
+                    px: 3,
+                    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
+                    transition: 'all 0.3s ease',
+                    '&:hover': {
+                      transform: 'translateY(-2px)',
+                      boxShadow: '0 6px 12px rgba(0, 0, 0, 0.15)',
+                    }
+                  }}
+                >
+                  Back
+                </Button>
+                
+                <Box>
+                  {activeStep === steps.length - 1 ? (
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      disabled={loading}
+                      endIcon={loading ? undefined : <SendIcon />}
+                      sx={{ 
+                        borderRadius: 30,
+                        px: 3,
                         background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-                        transform: 'translateY(-2px)',
-                        boxShadow: '0 6px 12px rgba(33, 150, 243, 0.4)',
-                      }
-                    }}
-                    className="btn-ripple"
-                  >
-                    {loading ? <CircularProgress size={24} /> : 'Create Quiz'}
-                  </Button>
-                ) : (
-                  <Button
-                    variant="contained"
-                    onClick={handleNext}
-                    endIcon={<QuestionIcon />}
-                    sx={{ 
-                      borderRadius: 30,
-                      px: 3,
-                      background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-                      boxShadow: '0 4px 8px rgba(33, 150, 243, 0.3)',
-                      transition: 'all 0.3s ease',
-                      '&:hover': {
+                        boxShadow: '0 4px 8px rgba(33, 150, 243, 0.3)',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                          transform: 'translateY(-2px)',
+                          boxShadow: '0 6px 12px rgba(33, 150, 243, 0.4)',
+                        }
+                      }}
+                      className="btn-ripple"
+                    >
+                      {loading ? <CircularProgress size={24} /> : 'Create Quiz Now'}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="contained"
+                      onClick={handleNext}
+                      endIcon={<QuestionIcon />}
+                      sx={{ 
+                        borderRadius: 30,
+                        px: 3,
                         background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
-                        transform: 'translateY(-2px)',
-                        boxShadow: '0 6px 12px rgba(33, 150, 243, 0.4)',
-                      }
-                    }}
-                    className="btn-ripple"
-                  >
-                    Next
-                  </Button>
-                )}
+                        boxShadow: '0 4px 8px rgba(33, 150, 243, 0.3)',
+                        transition: 'all 0.3s ease',
+                        '&:hover': {
+                          background: 'linear-gradient(45deg, #2196F3 30%, #21CBF3 90%)',
+                          transform: 'translateY(-2px)',
+                          boxShadow: '0 6px 12px rgba(33, 150, 243, 0.4)',
+                        }
+                      }}
+                      className="btn-ripple"
+                    >
+                      Next
+                    </Button>
+                  )}
+                </Box>
               </Box>
-            </Box>
-          </form>
-        </Paper>
-      </Box>
+            </form>
+
+            {/* Subscription Dialog */}
+            <Dialog open={showSubscriptionDialog} onClose={() => setShowSubscriptionDialog(false)}>
+              <DialogTitle>
+                <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                  <WarningIcon color="warning" sx={{ mr: 1 }} />
+                  Generation Limit Reached
+                </Box>
+              </DialogTitle>
+              <DialogContent>
+                <Typography variant="body1" paragraph>
+                  You've used all your free generations. Subscribe to a premium plan to continue creating quizzes.
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Premium plans include:
+                </Typography>
+                <ul>
+                  <li>Unlimited quiz generations</li>
+                  <li>Priority support</li>
+                  <li>Advanced features</li>
+                </ul>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setShowSubscriptionDialog(false)} color="inherit">
+                  Cancel
+                </Button>
+                <Button 
+                  variant="contained" 
+                  color="primary"
+                  component={Link}
+                  to="/subscription"
+                  onClick={() => setShowSubscriptionDialog(false)}
+                >
+                  View Plans
+                </Button>
+              </DialogActions>
+            </Dialog>
+          </Paper>
+        </Box>
+      </Fade>
     </Container>
   );
 };

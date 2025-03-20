@@ -1,12 +1,8 @@
 import { Question, RecentQuiz, Flashcard, LeaderboardEntry } from '../types';
 
-// Add type declaration for import.meta
-declare global {
-  interface ImportMeta {
-    env: Record<string, string>;
-  }
-}
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api' ;
+// Without declaration, TypeScript will use the default Vite types
+const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
 // Define the QuizResult interface locally if it's not properly imported
 interface QuizResult {
   score: number;
@@ -14,6 +10,27 @@ interface QuizResult {
   timeTaken: number;
   accuracy: number;
 }
+
+// Define subscription interfaces
+interface SubscriptionInfo {
+  free_generations_remaining: number;
+  subscription_status: string;
+  subscription_expiry: string | null;
+}
+
+interface SubscriptionResponse {
+  message: string;
+  plan: string;
+  subscription_expiry: Date;
+}
+
+// Response type for quiz and PDF creation
+export interface ContentCreateResponse {
+  quiz_id: string;
+  remaining_free: number;
+  subscription_status?: string;
+}
+
 export const api = {
   // Quiz related endpoints
   getRecentQuizzes: async (): Promise<RecentQuiz[]> => {
@@ -27,14 +44,21 @@ export const api = {
     return response.json();
   },
 
-  createQuiz: async (data: any): Promise<{ quiz_id: string }> => {
+  createQuiz: async (data: any): Promise<ContentCreateResponse> => {
     const response = await fetch(`${BASE_URL}/create_content`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
-    if (!response.ok) throw new Error('Failed to create quiz');
-    return response.json();
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to create quiz');
+    }
+    
+    const responseData = await response.json();
+    console.log('Raw API response from createQuiz:', responseData);
+    return responseData;
   },
 
   getQuiz: async (quizId: string): Promise<{ title: string, questions: Question[] }> => {
@@ -92,6 +116,7 @@ export const api = {
     if (!response.ok) throw new Error('Failed to fetch leaderboard');
     return response.json();
   },
+  
   //quiz result add in the last
   getQuizResult: async (quizId: string): Promise<QuizResult> => {
     const response = await fetch(`${BASE_URL}/leaderboard/${quizId}`);
@@ -99,12 +124,96 @@ export const api = {
     return response.json();
   },
 
-  uploadPdf: async (formData: FormData): Promise<{ quiz_id: string }> => {
+  uploadPdf: async (formData: FormData): Promise<ContentCreateResponse> => {
     const response = await fetch(`${BASE_URL}/upload_pdf`, {
       method: 'POST',
       body: formData,
     });
-    if (!response.ok) throw new Error('Failed to upload PDF');
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to upload PDF');
+    }
+    
+    const responseData = await response.json();
+    console.log('Raw API response from uploadPdf:', responseData);
+    return responseData;
+  },
+  
+  // Subscription related endpoints
+  getUserSubscription: async (userId: string): Promise<SubscriptionInfo> => {
+    // Add cache-busting parameter to prevent browser caching
+    const timestamp = new Date().getTime();
+    const response = await fetch(`${BASE_URL}/user/subscription/${userId}?t=${timestamp}`, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch subscription info');
+    const data = await response.json();
+    console.log('Raw subscription data from API:', data);
+    return data;
+  },
+  
+  subscribeToPlan: async (userId: string, plan: string): Promise<SubscriptionResponse> => {
+    const response = await fetch(`${BASE_URL}/user/subscribe`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      },
+      body: JSON.stringify({ userId, plan }),
+    });
+    if (!response.ok) throw new Error('Failed to subscribe to plan');
     return response.json();
   },
+  
+  uploadPaymentProof: async (userId: string, plan: string, paymentProof: File, transactionId: string): Promise<{ success: boolean; message: string }> => {
+    const formData = new FormData();
+    formData.append('paymentProof', paymentProof);
+    formData.append('userId', userId);
+    formData.append('plan', plan);
+    formData.append('transactionId', transactionId);
+    
+    const response = await fetch(`${BASE_URL}/user/payment_proof`, {
+      method: 'POST',
+      body: formData,
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to upload payment proof');
+    }
+    
+    return response.json();
+  },
+  
+  // Method to check if user can generate content - Not needed as the server handles this when creating content
+  checkUserUsage: async (userId: string): Promise<{ 
+    canGenerate: boolean; 
+    remainingFree: number; 
+    subscriptionStatus: string 
+  }> => {
+    // Add cache-busting parameter to prevent browser caching
+    const timestamp = new Date().getTime();
+    const response = await fetch(`${BASE_URL}/user/subscription/${userId}?t=${timestamp}`, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
+    });
+    
+    if (!response.ok) throw new Error('Failed to check user usage');
+    const data = await response.json();
+    
+    return {
+      canGenerate: data.subscription_status !== 'free' || data.free_generations_remaining > 0,
+      remainingFree: data.free_generations_remaining,
+      subscriptionStatus: data.subscription_status
+    };
+  }
 }; 

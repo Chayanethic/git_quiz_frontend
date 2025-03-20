@@ -14,6 +14,10 @@ import QuizResult from './components/QuizResult';
 import About from './components/About';
 import SignInPage from './components/SignInPage';
 import SignUpPage from './components/SignUpPage';
+import Subscription from './components/Subscription';
+import Layout from './components/Layout';
+import { AuthProvider } from './context/AuthContext';
+import { SubscriptionProvider } from './context/SubscriptionContext';
 
 if (!import.meta.env.VITE_CLERK_PUBLISHABLE_KEY) {
   throw new Error('Missing Publishable Key');
@@ -33,30 +37,35 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/" replace />;
   }
 
-  return <>{children}</>;
+  return <Layout>{children}</Layout>;
 };
 
 function App() {
   return (
     <ClerkProvider publishableKey={clerkPubKey}>
-      <Router>
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/sign-in/*" element={<SignInPage />} />
-          <Route path="/sign-up/*" element={<SignUpPage />} />
-          <Route path="/about" element={<About />} />
-          
-          {/* Protected Routes */}
-          <Route path="/home" element={<ProtectedRoute><QuizHome /></ProtectedRoute>} />
-          <Route path="/create" element={<ProtectedRoute><CreateQuiz /></ProtectedRoute>} />
-          <Route path="/quiz/:quizId" element={<ProtectedRoute><QuizQuestion /></ProtectedRoute>} />
-          <Route path="/recent" element={<ProtectedRoute><RecentQuizzes /></ProtectedRoute>} />
-          <Route path="/flashcards/:quizId" element={<ProtectedRoute><Flashcards /></ProtectedRoute>} />
-          <Route path="/leaderboard/:quizId" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
-          <Route path="/result/:quizId" element={<ProtectedRoute><QuizResult /></ProtectedRoute>} />
-        </Routes>
-      </Router>
+      <AuthProvider>
+        <SubscriptionProvider>
+          <Router>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/sign-in/*" element={<SignInPage />} />
+              <Route path="/sign-up/*" element={<SignUpPage />} />
+              <Route path="/about" element={<About />} />
+              
+              {/* Protected Routes */}
+              <Route path="/home" element={<ProtectedRoute><QuizHome /></ProtectedRoute>} />
+              <Route path="/create" element={<ProtectedRoute><CreateQuiz /></ProtectedRoute>} />
+              <Route path="/quiz/:quizId" element={<ProtectedRoute><QuizQuestion /></ProtectedRoute>} />
+              <Route path="/recent" element={<ProtectedRoute><RecentQuizzes /></ProtectedRoute>} />
+              <Route path="/flashcards/:quizId" element={<ProtectedRoute><Flashcards /></ProtectedRoute>} />
+              <Route path="/leaderboard/:quizId" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
+              <Route path="/result/:quizId" element={<ProtectedRoute><QuizResult /></ProtectedRoute>} />
+              <Route path="/subscription" element={<ProtectedRoute><Subscription /></ProtectedRoute>} />
+            </Routes>
+          </Router>
+        </SubscriptionProvider>
+      </AuthProvider>
     </ClerkProvider>
   );
 }
