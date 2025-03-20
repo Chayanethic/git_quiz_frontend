@@ -1,7 +1,7 @@
 import { Question, RecentQuiz, Flashcard, LeaderboardEntry } from '../types';
 
 // Without declaration, TypeScript will use the default Vite types
-const BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const BASE_URL = import.meta.env.VITE_API_URL || 'https://git-quiz-server.onrender.com/api';
 
 // Define the QuizResult interface locally if it's not properly imported
 interface QuizResult {
