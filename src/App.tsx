@@ -16,6 +16,7 @@ import SignInPage from './components/SignInPage';
 import SignUpPage from './components/SignUpPage';
 import Subscription from './components/Subscription';
 import MockTest from './components/MockTest';
+import ApiDocs from './components/ApiDocs';
 import Layout from './components/Layout';
 import { AuthProvider } from './context/AuthContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
@@ -53,6 +54,7 @@ function App() {
               <Route path="/sign-in/*" element={<SignInPage />} />
               <Route path="/sign-up/*" element={<SignUpPage />} />
               <Route path="/about" element={<About />} />
+              <Route path="/api-docs" element={<ApiDocs />} />
               
               {/* Protected Routes */}
               <Route path="/home" element={<ProtectedRoute><QuizHome /></ProtectedRoute>} />
