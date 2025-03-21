@@ -10,7 +10,7 @@ interface ImportMeta {
 
 // Use a default base URL if environment variable is not available
 // This avoids TypeScript errors with import.meta.env
-let BASE_URL = 'http://localhost:3000/api';
+let BASE_URL = 'https://git-quiz-server.onrender.com/api';
 
 // Try to get the environment variable safely
 try {
