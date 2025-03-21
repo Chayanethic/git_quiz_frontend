@@ -26,6 +26,7 @@ import {
   Info as InfoIcon,
   AccountCircle as ProfileIcon,
   Star as StarIcon,
+  Quiz as QuizIcon,
 } from '@mui/icons-material';
 
 interface SidebarProps {
@@ -92,6 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen = true }) => {
   const menuItems = [
     { path: '/home', text: 'Home', icon: <HomeIcon /> },
     { path: '/create', text: 'Create Quiz', icon: <CreateIcon /> },
+    { path: '/mock-test', text: 'Mock Tests', icon: <QuizIcon /> },
     { path: '/recent', text: 'Recent Quizzes', icon: <HistoryIcon /> },
     { path: '/about', text: 'About', icon: <InfoIcon /> },
   ];

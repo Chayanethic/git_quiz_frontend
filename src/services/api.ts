@@ -1,7 +1,32 @@
 import { Question, RecentQuiz, Flashcard, LeaderboardEntry } from '../types';
 
+<<<<<<< HEAD
 // Without declaration, TypeScript will use the default Vite types
 const BASE_URL = import.meta.env.VITE_API_URL || 'https://git-quiz-server.onrender.com/api';
+=======
+// Define ImportMeta interface for Vite environment variables
+interface ImportMeta {
+  env: {
+    VITE_API_URL?: string;
+    [key: string]: string | undefined;
+  };
+}
+
+// Use a default base URL if environment variable is not available
+// This avoids TypeScript errors with import.meta.env
+let BASE_URL = 'http://localhost:3000/api';
+
+// Try to get the environment variable safely
+try {
+  // @ts-ignore - Ignore TypeScript error for environment access
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl) {
+    BASE_URL = envUrl;
+  }
+} catch (error) {
+  console.warn('Could not access environment variables, using default BASE_URL');
+}
+>>>>>>> 6c21ffc (mocktest add)
 
 // Define the QuizResult interface locally if it's not properly imported
 interface QuizResult {
@@ -29,6 +54,27 @@ export interface ContentCreateResponse {
   quiz_id: string;
   remaining_free: number;
   subscription_status?: string;
+}
+
+// Mock test interfaces
+export interface MockTestResponse {
+  message: string;
+  test_id: string;
+  download_link: string;
+  topic: string;
+  difficulty: string;
+  num_questions: number;
+  subscription_status: string;
+  remaining_free: number;
+}
+
+export interface UserMockTest {
+  test_id: string;
+  topic: string;
+  difficulty: string;
+  num_questions: number;
+  created_at: Date;
+  download_link: string;
 }
 
 export const api = {
@@ -215,5 +261,50 @@ export const api = {
       remainingFree: data.free_generations_remaining,
       subscriptionStatus: data.subscription_status
     };
+  },
+
+  // Mock test related endpoints
+  generateMockTest: async (
+    userId: string,
+    topic: string,
+    description: string,
+    difficulty: string,
+    numQuestions: number
+  ): Promise<MockTestResponse> => {
+    const response = await fetch(`${BASE_URL}/mock-test/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: userId,
+        topic,
+        description,
+        difficulty,
+        num_questions: numQuestions
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to generate mock test');
+    }
+    
+    return response.json();
+  },
+
+  getUserMockTests: async (userId: string): Promise<UserMockTest[]> => {
+    const response = await fetch(`${BASE_URL}/mock-test/user/${userId}`);
+    if (!response.ok) throw new Error('Failed to fetch user mock tests');
+    
+    const data = await response.json();
+    // Convert string dates to Date objects
+    return data.map((test: any) => ({
+      ...test,
+      created_at: new Date(test.created_at)
+    }));
+  },
+
+  downloadMockTest: (testId: string): string => {
+    // Return the full URL including BASE_URL to ensure the download works correctly
+    return `${BASE_URL}/mock-test/download/${testId}`;
   }
 }; 

@@ -15,6 +15,7 @@ import About from './components/About';
 import SignInPage from './components/SignInPage';
 import SignUpPage from './components/SignUpPage';
 import Subscription from './components/Subscription';
+import MockTest from './components/MockTest';
 import Layout from './components/Layout';
 import { AuthProvider } from './context/AuthContext';
 import { SubscriptionProvider } from './context/SubscriptionContext';
@@ -62,6 +63,7 @@ function App() {
               <Route path="/leaderboard/:quizId" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
               <Route path="/result/:quizId" element={<ProtectedRoute><QuizResult /></ProtectedRoute>} />
               <Route path="/subscription" element={<ProtectedRoute><Subscription /></ProtectedRoute>} />
+              <Route path="/mock-test" element={<ProtectedRoute><MockTest /></ProtectedRoute>} />
             </Routes>
           </Router>
         </SubscriptionProvider>
